@@ -5,57 +5,6 @@
 {% block content %}
 <style>
 
-    .container {
-        display: flex;
-        width: 100%;
-        height: calc(100% - 60px);
-        margin-top: 60px;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .sidebar {
-        width: 250px;
-        background: #343a40;
-        padding: 20px;
-        color: white;
-        border-right: 1px solid #ddd;
-        height: 100%;
-        position: fixed;
-        top: 0;
-        left: 0;
-        transition: transform 0.3s ease;
-        transform: translateX(-100%);
-    }
-
-    .sidebar.active {
-        transform: translateX(0);
-    }
-
-    .sidebar .nav-link {
-        color: white;
-    }
-
-    .main-content {
-        margin-left: 250px;
-        padding: 20px;
-        width: calc(100% - 270px);
-        overflow-y: auto;
-        transition: margin-left 0.3s ease;
-    }
-
-    .main-content.full-width {
-        margin-left: 0;
-        width: 100%;
-    }
-
-    .chart-title {
-        text-align: center;
-        color: white;
-        margin-bottom: 10px;
-        font-size: 24px;
-    }
-
     .chart-container {
         display: flex;
         flex-wrap: wrap;
@@ -114,28 +63,6 @@
         color: #D65A29;
     }
 
-    .main-content p {
-        color: #D65A29;
-    }
-
-    .main-content h2, .main-content h1, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
-        color: #D65A29;
-    }
-
-    @media (max-width: 768px) {
-        .sidebar {
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .main-content {
-            margin-left: 0;
-            width: 100%;
-        }
-    }
 </style>
 {% include "navbar.html" %}
 

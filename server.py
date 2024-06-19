@@ -9,7 +9,6 @@ import time
 from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
-import scapy.all as scapy
 import os
 from collections import deque
 from queue import Queue
@@ -65,8 +64,8 @@ firewall_ip = c.execute('SELECT IP FROM ips').fetchone()
 conn.close()
 
 OPNSENSE_HOST = f"http://{firewall_ip[0]}"
-API_KEY = "4DxnKG0eBH8YRGqVhNIe8cM2UjqvdSOvXq65nyvY5gkM0ZOoAaOOl3kTPXmrI1KEB6qQL3nfkN8a2+s8"
-API_SECRET = "xevRWAx/eH6YN+XIu01ycGSY02ybWgcmi6wBRZ/5viZFW5OhJMECEsca/6u65ABYFsHlZ25SyOoIXN2J"
+API_KEY = "jrvyX2oH6Ofqp/7BHfC+3YyBq8YTU3PkcGSKKC6XabZGWKZ9OkDkzp8kUtdsxvKTZ60aw2OtcOXUEw5E"
+API_SECRET = "bz92B/FFBOWs1CNrweoJ3iV8N4tkA8Rdf3KMfqzj9lTJ3zMOMbPbqOn9H+TMs2M8e7k2ae7vt4fbsc5x"
 auth = (API_KEY, API_SECRET)
 
 interfaces = []  # Initialize interfaces before usage
