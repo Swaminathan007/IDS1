@@ -9,9 +9,20 @@ import time
 from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
-import os
+import scapy.all as scapy
 from collections import deque
 from queue import Queue
+import argparse
+from flask_socketio import SocketIO
+import pty
+import os
+import select
+import termios
+import struct
+import fcntl
+import shlex
+import logging
+import sys
 
 from wifi_signal import ap as wifi_signal_blueprint
 
@@ -36,10 +47,32 @@ command_thread = None
 app = Flask(__name__)
 app.secret_key = 'my_secret_key'
 app.config['SESSION_TYPE'] = 'filesystem'
-socketio = SocketIO(app)
+app.config["fd"] = None
+app.config["child_pid"] = None
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+
+socketio = SocketIO(app)
+
+
+def set_winsize(fd, row, col, xpix=0, ypix=0):
+    logging.debug("setting window size with termios")
+    winsize = struct.pack("HHHH", row, col, xpix, ypix)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+
+
+def read_and_forward_pty_output():
+    max_read_bytes = 1024 * 20
+    while True:
+        socketio.sleep(0.01)
+        if app.config["fd"]:
+            timeout_sec = 0
+            (data_ready, _, _) = select.select([app.config["fd"]], [], [], timeout_sec)
+            if data_ready:
+                output = os.read(app.config["fd"], max_read_bytes).decode(errors="ignore")
+                socketio.emit("pty-output", {"output": output}, namespace="/pty")
 
 class User(UserMixin):
     def __init__(self, id, username, password):
@@ -162,86 +195,106 @@ def login():
         flash('Invalid username or password')
     return render_template('login.html')
 
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
 
 @app.route("/adduser", methods=["GET", "POST"])
 @login_required
 def adduser():
     return render_template("adduser.html")
 
-@app.route("/viewlivepackets")
+@app.route("/terminal")
 @login_required
-def viewlivepackets():
-    interfaces = scapy.get_if_list()
-    print(interfaces)
-    return render_template("interfaces.html", interfaces=interfaces)
-
-@app.route("/packet", methods=["POST"])
-def receive_packet():
-    packet_json = request.get_json()
-    packet_queue.put(packet_json)
-    return "Packet received", 200
-
-@app.route("/get_packets")
-def get_packets():
-    packets = []
-    while not packet_queue.empty():
-        packets.append(packet_queue.get())
-    return jsonify(packets)
-
-@app.route("/viewlivepackets/<string:interface>")
-def viewliveinterface(interface):
-    command_thread = CommandThread(interface)
-    command_thread.start()
-    return render_template("traffic.html", interface=interface)
+def terminal():
+    return render_template("terminal.html")
 
 
+@socketio.on("pty-input", namespace="/pty")
+def pty_input(data):
+    """write to the child pty. The pty sees this as if you are typing in a real
+    terminal.
+    """
+    if app.config["fd"]:
+        logging.debug("received input from browser: %s" % data["input"])
+        os.write(app.config["fd"], data["input"].encode())
 
-# feedback form
-@app.route('/feedback', methods=['GET', 'POST'])
-def feedback():
-    if request.method == 'POST':
-        feedback = request.form.get('feedback')  # Retrieve feedback from form data
-        username = request.form.get('username')  # Assuming you have a way to get the username
-        
-        print("Feedback Received:", feedback)  # Add logging to check if feedback is received
 
-        # Use environment variables for sensitive information
-        EMAIL_USER = os.getenv('EMAIL_USER', '125003239@sastra.ac.in')
-        EMAIL_PASS = os.getenv('EMAIL_PASS', '09062003')
+@socketio.on("resize", namespace="/pty")
+def resize(data):
+    if app.config["fd"]:
+        logging.debug(f"Resizing window to {data['rows']}x{data['cols']}")
+        set_winsize(app.config["fd"], data["rows"], data["cols"])
 
-        # Create a MIMEText object to represent the email
-        msg = MIMEMultipart()
-        me = EMAIL_USER
 
-        try:
-            you = "125003358@sastra.ac.in"
-            subject = 'Feedback from {}'.format(username)
-            msg['Subject'] = subject
-            msg['From'] = me
-            msg['To'] = you
+@socketio.on("connect", namespace="/pty")
+def connect():
+    """new client connected"""
+    logging.info("new client connected")
+    if app.config["child_pid"]:
+        # already started child process, don't start another
+        return
 
-            body = f"Feedback from {username}:\n{feedback}"
-            msg.attach(MIMEText(body, 'plain'))
-
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-                server.login(EMAIL_USER, EMAIL_PASS)
-                server.sendmail(me, [you], msg.as_string())
-
-            print("Mail sent successfully")
-            return jsonify({'success': True})  # Send success response
-        except Exception as e:
-            print(f"Failed to send email: {e}")
-            return jsonify({'success': False, 'error': str(e)})  # Send failure response
+    # create child process attached to a pty we can read from and write to
+    (child_pid, fd) = pty.fork()
+    if child_pid == 0:
+        # this is the child process fork.
+        # anything printed here will show up in the pty, including the output
+        # of this subprocess
+        home_directory = os.path.expanduser("~")
+        os.chdir(home_directory)  # Change to the user's home directory
+        subprocess.run(app.config["cmd"])
     else:
-        return render_template("feedback.html")
+        # this is the parent process fork.
+        # store child fd and pid
+        app.config["fd"] = fd
+        app.config["child_pid"] = child_pid
+        set_winsize(fd, 50, 50)
+        cmd = " ".join(shlex.quote(c) for c in app.config["cmd"])
+        # logging/print statements must go after this because... I have no idea why
+        # but if they come before the background task never starts
+        socketio.start_background_task(target=read_and_forward_pty_output)
 
-# Register the wifi_signal blueprint
+        logging.info(f"child pid is {child_pid}")
+        logging.info(
+            f"starting background task with command `{cmd}` to continuously read "
+            "and forward pty output to client"
+        )
+        logging.info("task started")
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 app.register_blueprint(wifi_signal_blueprint)
+def main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "A fully functional terminal in your browser. "
+            "https://github.com/cs01/pyxterm.js"
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-p", "--port", default=5000, help="port to run server on", type=int
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="host to run server on (use 0.0.0.0 to allow access from other hosts)",
+    )
+    parser.add_argument("--debug", action="store_true", help="debug the server")
+    parser.add_argument("--version", action="store_true", help="print version and exit")
+    parser.add_argument(
+        "--command", default="bash", help="Command to run in the terminal"
+    )
+    parser.add_argument(
+        "--cmd-args",
+        default="",
+        help="arguments to pass to command (i.e. --cmd-args='arg1 arg2 --flag')",
+    )
+    args = parser.parse_args()
+    app.config["cmd"] = [args.command] + shlex.split(args.cmd_args)
+    socketio.run(app, debug=True, port=3000, host="0.0.0.0")
+if __name__ == "__main__":
+    main()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=4000)
+

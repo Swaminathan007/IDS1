@@ -5,9 +5,11 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bootstrap Admin Dashboard</title>
+    <title>{%block title%}{%endblock%}</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/css/bootstrap.min.css">
     <script src="https://kit.fontawesome.com/ae360af17e.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://unpkg.com/xterm@4.11.0/css/xterm.css">
     <style>
                 *,
         ::after,
@@ -16,7 +18,6 @@
         }
 
         body {
-            font-family: 'Poppins', sans-serif;
             font-size: 0.875rem;
             opacity: 1;
             overflow-y: scroll;
@@ -136,12 +137,6 @@
                 width: auto;
             }
         }
-
-        .card {
-            box-shadow: 0 0 .875rem 0 rgba(34, 46, 60, .05);
-            margin-bottom: 24px;
-        }
-
         .illustration {
             background-color: var(--bs-primary-bg-subtle);
             color: var(--bs-emphasis-color);
@@ -206,45 +201,132 @@
         html[data-bs-theme="light"] .theme-toggle .fa-sun {
             display: none;
         }
+        #terminal {
+            flex: 1;
+            border: 1px solid #ddd;
+            margin: 10px;
+            padding: 10px;
+            background-color: #000;
+            color: #fff;
+            border-radius: 5px;
+            overflow: auto;
+        }
 
     </style>
 </head>
 <body>
+    <script src="https://unpkg.com/xterm@4.11.0/lib/xterm.js"></script>
+    <script src="https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://unpkg.com/xterm-addon-web-links@0.4.0/lib/xterm-addon-web-links.js"></script>
+    <script src="https://unpkg.com/xterm-addon-search@0.8.0/lib/xterm-addon-search.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/js/bootstrap.bundle.min.js"></script>
     {%block content%}
     {%endblock%}
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
-    const sidebarToggle = document.querySelector("#sidebar-toggle");
-                        sidebarToggle.addEventListener("click",function(){
-                            document.querySelector("#sidebar").classList.toggle("collapsed");
-                        });
-                
-                        document.querySelector(".theme-toggle").addEventListener("click",() => {
-                            toggleLocalStorage();
-                            toggleRootClass();
-                        });
-                
-                        function toggleRootClass(){
-                            const current = document.documentElement.getAttribute('data-bs-theme');
-                            const inverted = current == 'dark' ? 'light' : 'dark';
-                            document.documentElement.setAttribute('data-bs-theme',inverted);
-                        }
-                
-                        function toggleLocalStorage(){
-                            if(isLight()){
-                                localStorage.removeItem("light");
-                            }else{
-                                localStorage.setItem("light","set");
-                            }
-                        }
-                
-                        function isLight(){
-                            return localStorage.getItem("light");
-                        }
-                
-                        if(isLight()){
-                            toggleRootClass();
-                        }
-                </script>
+        const sidebarToggle = document.querySelector("#sidebar-toggle");
+        sidebarToggle.addEventListener("click",function(){
+            document.querySelector("#sidebar").classList.toggle("collapsed");
+        });
+
+        document.querySelector(".theme-toggle").addEventListener("click",() => {
+            toggleLocalStorage();
+            toggleRootClass();
+        });
+
+        function toggleRootClass(){
+            const current = document.documentElement.getAttribute('data-bs-theme');
+            const inverted = current == 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme',inverted);
+        }
+
+        function toggleLocalStorage(){
+            if(isLight()){
+                localStorage.removeItem("light");
+            }else{
+                localStorage.setItem("light","set");
+            }
+        }
+
+        function isLight(){
+            return localStorage.getItem("light");
+        }
+
+        if(isLight()){
+            toggleRootClass();
+        }
+</script>
+<script>
+    const term = new Terminal({
+        cursorBlink: true,
+        macOptionIsMeta: true,
+        scrollback: true,
+        fontFamily: 'Fira Code, monospace'
+    });
+
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon.WebLinksAddon());
+    term.loadAddon(new SearchAddon.SearchAddon());
+
+    term.open(document.getElementById("terminal"));
+    fit.fit();
+    term.resize(15, 50);
+    console.log(`size: ${term.cols} columns, ${term.rows} rows`);
+    fit.fit();
+    term.writeln('');
+
+    const socket = io.connect("/pty");
+
+    socket.on("pty-output", function (data) {
+        console.log("new output received from server:", data.output);
+        term.write(data.output);
+    });
+
+    term.onData((data) => {
+        console.log("browser terminal received new data:", data);
+        socket.emit("pty-input", { input: data });
+    });
+
+    function fitToscreen() {
+        fit.fit();
+        const dims = { cols: term.cols, rows: term.rows };
+        console.log("sending new dimensions to server's pty", dims);
+        socket.emit("resize", dims);
+    }
+
+    function debounce(func, wait_ms) {
+        let timeout;
+        return function (...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait_ms);
+        };
+    }
+    window.onresize = debounce(adjustTerminalSize, 10);
+    function customKeyEventHandler(e) {
+        if (e.type !== "keydown") {
+            return true;
+        }
+        if (e.ctrlKey && e.shiftKey) {
+            const key = e.key.toLowerCase();
+            if (key === "v") {
+                navigator.clipboard.readText().then((toPaste) => {
+                    term.writeText(toPaste);
+                });
+                return false;
+            } else if (key === "c" || key === "x") {
+                const toCopy = term.getSelection();
+                navigator.clipboard.writeText(toCopy);
+                term.focus();
+                return false;
+            }
+        }
+        return true;
+    }
+    const wait_ms = 0;
+    window.onresize = debounce(fitToscreen, wait_ms);
+</script>
+
 </body>
+</html>
