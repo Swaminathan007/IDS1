@@ -7,7 +7,7 @@ import sqlite3
 import subprocess
 import threading
 import time
-from datetime import datetime
+from datetime import datetime,timedelta
 import requests
 from requests.auth import HTTPBasicAuth
 import scapy.all as scapy
@@ -26,7 +26,7 @@ import logging
 import sys
 import boto3
 from wifi_signal import ap as wifi_signal_blueprint
-
+import zipfile
 packet_queue = Queue()
 cur_ip = None
 
@@ -50,18 +50,26 @@ class LogThread(threading.Thread):
         super(LogThread,self).__init__()
         self._stop_event = threading.Event()
         self.__bucket_name = "ottrafficlogs"
-        self.__log_path = None
-        self.__zipped_log_path = None
+        self.__log_path = "/home/swaminathan/IDS1/static/csv"
+        self.__zipped_log_path = "/home/swaminathan/IDS1/static/zippedlogs"
     def run(self):
         while True:
             cur_time = datetime.now()
             cur_min = cur_time.minute
             if(cur_min == 0 or cur_min == 30):
-                self.store_logs_locally()
-                self.store_logs_aws()
-    def store_logs_locally(self):
-        pass
-    def store_logs_aws(self):
+                zip_file_name = f"Log-{str(cur_time-datetime.timedelta(minutes=30))}+{str(cur_time)}.zip"
+                self.store_logs_locally(zip_file_name)
+                self.store_logs_aws(zip_file_name)
+                message = f"Logs have been stored: {zip_file_name}"
+                socketio.emit('log_update', {'message': message}, broadcast=True)
+                time.sleep(60)
+    def store_logs_locally(self,zip_file_name):
+        with zipfile.ZipFile(self.__zipped_log_path+"/"+zip_file_name, 'w') as zipf:
+            for foldername, subfolders, filenames in os.walk(self.__log_path):
+                for filename in filenames:
+                    file_path = os.path.join(foldername, filename)
+                    zipf.write(file_path, os.path.relpath(file_path, self.__log_path))
+    def store_logs_aws(self,zip_file_name):
         pass
 command_thread = None
 log_thread = None
