@@ -52,25 +52,32 @@ class LogThread(threading.Thread):
         self.__bucket_name = "ottrafficlogs"
         self.__log_path = "/home/swaminathan/IDS1/static/csv"
         self.__zipped_log_path = "/home/swaminathan/IDS1/static/zippedlogs"
+        self.__client = boto3.client("s3")
     def run(self):
         while True:
             cur_time = datetime.now()
             cur_min = cur_time.minute
-            if(cur_min == 0 or cur_min == 30):
-                zip_file_name = f"Log-{str(cur_time-datetime.timedelta(minutes=30))}+{str(cur_time)}.zip"
+            if(cur_min%30 == 0):
+                zip_file_name = f"Log-{str(cur_time-timedelta(minutes=30))} - {str(cur_time)}.zip"
                 self.store_logs_locally(zip_file_name)
                 self.store_logs_aws(zip_file_name)
                 message = f"Logs have been stored: {zip_file_name}"
                 socketio.emit('log_update', {'message': message}, broadcast=True)
+                print("Logs stored successfully")
                 time.sleep(60)
+            time.sleep(1)
     def store_logs_locally(self,zip_file_name):
-        with zipfile.ZipFile(self.__zipped_log_path+"/"+zip_file_name, 'w') as zipf:
+        with zipfile.ZipFile(f"{self.__zipped_log_path}/{zip_file_name}", 'w') as zipf:
             for foldername, subfolders, filenames in os.walk(self.__log_path):
                 for filename in filenames:
                     file_path = os.path.join(foldername, filename)
                     zipf.write(file_path, os.path.relpath(file_path, self.__log_path))
     def store_logs_aws(self,zip_file_name):
-        pass
+        try:
+            with open(f"{self.__zipped_log_path}/{zip_file_name}", "rb") as f:
+                self.__client.upload_fileobj(f, "ottrafficlogs", zip_file_name)
+        except:
+            socketio.emit("log_update",{"message":"Error connecting to AWS"},broadcast=True)
 command_thread = None
 log_thread = None
 app = Flask(__name__)
@@ -287,6 +294,11 @@ def connect():
             "and forward pty output to client"
         )
         logging.info("task started")
+
+@app.route("/sysinfo")
+@login_required
+def sysinfo():
+    return render_template("sysinfo.html")
 @app.route('/logout')
 @login_required
 def logout():
@@ -295,8 +307,8 @@ def logout():
 
 app.register_blueprint(wifi_signal_blueprint)
 def main():
-    log_thread = LogThread()
-    log_thread.start()
+    # log_thread = LogThread()
+    # log_thread.start()
     parser = argparse.ArgumentParser(
         description=(
             "A fully functional terminal in your browser. "
