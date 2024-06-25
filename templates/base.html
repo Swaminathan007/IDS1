@@ -331,6 +331,13 @@
     const wait_ms = 0;
     window.onresize = debounce(fitToscreen, wait_ms);
 </script>
+<script>
+    var socket1 = io.connect('http://' + document.domain + ':' + location.port);
+
+    socket1.on('log_update', function(data) {
+        alert(data.message); // This will show a popup with the log update message
+    });
+</script>
 
 </body>
 </html>
