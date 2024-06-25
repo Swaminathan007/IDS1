@@ -24,11 +24,12 @@ import fcntl
 import shlex
 import logging
 import sys
-
+import boto3
 from wifi_signal import ap as wifi_signal_blueprint
 
 packet_queue = Queue()
 cur_ip = None
+
 
 class CommandThread(threading.Thread):
     def __init__(self, interface):
@@ -48,6 +49,9 @@ class LogThread(threading.Thread):
     def __init__(self):
         super(LogThread,self).__init__()
         self._stop_event = threading.Event()
+        self.__bucket_name = "ottrafficlogs"
+        self.__log_path = None
+        self.__zipped_log_path = None
     def run(self):
         while True:
             cur_time = datetime.now()
