@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 from flask import *
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_socketio import SocketIO
@@ -42,8 +43,24 @@ class CommandThread(threading.Thread):
             if self._stop_event.is_set():
                 break
 
-command_thread = None
 
+class LogThread(threading.Thread):
+    def __init__(self):
+        super(LogThread,self).__init__()
+        self._stop_event = threading.Event()
+    def run(self):
+        while True:
+            cur_time = datetime.now()
+            cur_min = cur_time.minute
+            if(cur_min == 0 or cur_min == 30):
+                self.store_logs_locally()
+                self.store_logs_aws()
+    def store_logs_locally(self):
+        pass
+    def store_logs_aws(self):
+        pass
+command_thread = None
+log_thread = None
 app = Flask(__name__)
 app.secret_key = 'my_secret_key'
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -266,6 +283,8 @@ def logout():
 
 app.register_blueprint(wifi_signal_blueprint)
 def main():
+    log_thread = LogThread()
+    log_thread.start()
     parser = argparse.ArgumentParser(
         description=(
             "A fully functional terminal in your browser. "
