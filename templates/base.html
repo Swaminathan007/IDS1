@@ -11,13 +11,14 @@
     <script src="https://kit.fontawesome.com/ae360af17e.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://unpkg.com/xterm@4.11.0/css/xterm.css">
     <style>
-                *,
+        *,
         ::after,
         ::before {
             box-sizing: border-box;
         }
 
         body {
+            background-color: white;
             font-size: 0.875rem;
             opacity: 1;
             overflow-y: scroll;
@@ -27,7 +28,6 @@
         a {
             cursor: pointer;
             text-decoration: none;
-            font-family: 'Poppins', sans-serif;
         }
 
         li {
@@ -38,15 +38,11 @@
             font-size: 1.275rem;
             color: var(--bs-emphasis-color);
         }
-
-        /* Layout for admin dashboard skeleton */
-
         .wrapper {
             align-items: stretch;
             display: flex;
             width: 100%;
         }
-
         #sidebar {
             max-width: 264px;
             min-width: 264px;
@@ -72,7 +68,7 @@
         }
 
         .sidebar-logo a {
-            color: #e9ecef;
+            color: #fff;
             font-size: 1.15rem;
             font-weight: 600;
         }
@@ -85,14 +81,14 @@
         }
 
         .sidebar-header {
-            color: #e9ecef;
+            color: #fff;
             font-size: .75rem;
             padding: 1.5rem 1.5rem .375rem;
         }
 
         a.sidebar-link {
             padding: .625rem 1.625rem;
-            color: #e9ecef;
+            color: #fff;
             position: relative;
             display: block;
             font-size: 0.875rem;
@@ -225,6 +221,7 @@
     <script src="https://unpkg.com/xterm-addon-search@0.8.0/lib/xterm-addon-search.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     {%block content%}
     {%endblock%}
     <script>
@@ -338,6 +335,43 @@
         alert(data.message); // This will show a popup with the log update message
     });
 </script>
-
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const fullscreenButton = document.getElementById('fullscreen-toggle');
+        const fullscreenIcon = document.getElementById('fullscreen-icon');
+    
+        fullscreenButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!document.fullscreenElement) {
+                // Enter full-screen
+                document.documentElement.requestFullscreen().then(() => {
+                    fullscreenIcon.classList.remove('bi-fullscreen');
+                    fullscreenIcon.classList.add('bi-fullscreen-exit');
+                }).catch((err) => {
+                    console.error(`Error attempting to enter full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                // Exit full-screen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().then(() => {
+                        fullscreenIcon.classList.remove('bi-fullscreen-exit');
+                        fullscreenIcon.classList.add('bi-fullscreen');
+                    }).catch((err) => {
+                        console.error(`Error attempting to exit full-screen mode: ${err.message} (${err.name})`);
+                    });
+                }
+            }
+        });
+    
+        // Detect if the full-screen mode is exited using the escape key or other method
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                fullscreenIcon.classList.remove('bi-fullscreen-exit');
+                fullscreenIcon.classList.add('bi-fullscreen');
+            }
+        });
+    });
+    </script>
+    
 </body>
 </html>

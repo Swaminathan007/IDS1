@@ -36,7 +36,7 @@
                     </li>
                     <li class="sidebar-item">
                         <a href="#" class="sidebar-link collapsed" data-bs-toggle="collapse" data-bs-target="#monitor"
-                            aria-expanded="false" aria-controls="dashboard">
+                            aria-expanded="false" aria-controls="monitor">
                             OT-IDS
                         </a>
                         <ul id="monitor" class="sidebar-dropdown list-unstyled collapse" data-bs-parent="#sidebar">
@@ -69,7 +69,6 @@
                     <li class="sidebar-item">
                         <a href="#" class="sidebar-link collapsed" data-bs-toggle="collapse" data-bs-target="#User"
                             aria-expanded="false" aria-controls="dashboard">
-                            
                             Users and Groups
                         </a>
                         <ul id="User" class="sidebar-dropdown list-unstyled collapse" data-bs-parent="#sidebar">
@@ -85,7 +84,7 @@
         
                 
                 <li class="sidebar-item">
-                    <a href="#" class="sidebar-link" data-bs-toggle="collapse" data-bs-target="#auth"
+                    <a href="#" class="sidebar-link collapsed" data-bs-toggle="collapse" data-bs-target="#auth"
                         aria-expanded="false" aria-controls="auth">
                         Auth
                     </a>
@@ -107,27 +106,71 @@
             </ul>
         </div>
     </aside>
-    <a class="theme-toggle">
-        <i class="fa-regular fa-moon"></i>
-        <i class="fa-regular fa-sun"></i>
-    </a>
     <div class="main">
-        <nav class="navbar navbar-expand px-3 border-bottom">
-                <div class="d-flex 
-                justify-content-between 
-                flex-row align-items-center" style="width:100%;">
-                    <div class="p-2">
-                        <button class="btn logo" id="sidebar-toggle" type="button">
-                            <span class="navbar-toggler-icon"></span>
-                        </button>
-                    </div>
-                    <div class="p-2">
-                        <i id="ethernet-icon" class="fas fa-ethernet"></i>
-                        <i id="wifi-icon" class="fas fa-wifi"></i>
-                    </div>
-                    <div class="p-2 logout"><a href="/logout">Logout</a></div>
+        <nav class="navbar navbar-expand px-3 border-bottom sticky-top">
+            <div class="container-fluid">
+                <!-- Hamburger Icon on the left -->
+                <button class="btn logo" id="sidebar-toggle" type="button">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="d-flex flex-grow-1 justify-content-center">
+                    <i id="ethernet-icon" class="fas fa-ethernet mx-2"></i>
+                    <i id="wifi-icon" class="fas fa-wifi mx-2"></i>
                 </div>
+                <!-- Right-aligned content -->
+                <div class="d-flex ms-auto align-items-center">
+                    <form class="d-flex me-3" role="search">
+                        <div class="input-group">
+                            <input type="text" class="form-control" placeholder="Search" aria-label="Search" aria-describedby="basic-addon2">
+                            <button class="btn btn-outline-success">
+                                <span class="input-group-text" id="basic-addon2" style="background: none; border: none;">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+        
+                    <!-- Terminal Icon -->
+                    <div class="me-3 p-2">
+                        <a href="/terminal"><i class="bi bi-terminal" style="font-size: 1.5rem;"></i></a>
+                    </div>
+
+                    <div class="me-3 p-2">
+                        <a href="#"><i class="bi bi-bell" style="font-size: 1.5rem;"></i></a>
+                    </div>
+                    
+                    <div class="me-3 p-2">
+                        <a href="#" id="fullscreen-toggle">
+                            <i class="bi bi-fullscreen" style="font-size: 1.5rem;" id="fullscreen-icon"></i></a>
+                    </div>
+                    <!-- Logout -->
+                    <div class="user-dropdown">
+                        <div class="dropdown">
+                            <button class="btn btn-danger dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="userDropdown">
+                                <li><a class="dropdown-item" href="/productinfo">Product Information</a></li>
+                                <li>
+                                    <button type="button" class="dropdown-toggle" data-bs-toggle="system" aria-expanded="false">
+                                        Right-aligned menu example
+                                    </button>
+                                    <ul class="dropdown-menu" id="system">
+                                        <li><a class="dropdown-item" href="#">Regular link</a></li>
+                                        <li><a class="dropdown-item disabled" aria-disabled="true">Disabled link</a></li>
+                                        <li><a class="dropdown-item" href="#">Another link</a></li>
+                                    </ul>
+                                </li>
+                                <li><a class="dropdown-item" href="#">Help</a></li>
+                                <li><a class="dropdown-item" href="/changepassword">Change password</a></li>
+                                <li><a class="dropdown-item" href="/logout">Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </nav>
+        
         <main class="content px-3 py-2">
             <div class="container-fluid">
                 <div class="mb-3">
