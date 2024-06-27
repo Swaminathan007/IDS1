@@ -17,5 +17,6 @@ def init_db():
     # c.executemany('INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)', sample_users)
     conn.commit()
     conn.close()
+
 init_db()
 

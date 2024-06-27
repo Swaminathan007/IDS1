@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 from flask import *
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO,emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import subprocess
@@ -10,11 +10,9 @@ import time
 from datetime import datetime,timedelta
 import requests
 from requests.auth import HTTPBasicAuth
-import scapy.all as scapy
 from collections import deque
 from queue import Queue
 import argparse
-from flask_socketio import SocketIO
 import pty
 import os
 import select
@@ -27,9 +25,21 @@ import sys
 import boto3
 from wifi_signal import ap as wifi_signal_blueprint
 import zipfile
-packet_queue = Queue()
+from scapy.all import *
+from scapy.layers.inet import IP
+from scapy.layers.inet6 import IPv6
+
 cur_ip = None
 
+CAPTURES_DIR = os.path.join(os.getcwd(), 'static', 'captures')
+os.makedirs(CAPTURES_DIR, exist_ok=True)
+
+sniffing_event = Event()
+sniffing_thread = None
+captured_packets = []
+
+start_time = None
+filename = None
 
 class CommandThread(threading.Thread):
     def __init__(self, interface):
@@ -131,7 +141,8 @@ conn = sqlite3.connect('users.db')
 c = conn.cursor()
 firewall_ip = c.execute('SELECT IP FROM ips').fetchone()
 conn.close()
-
+if(firewall_ip is None):
+    firewall_ip = ("192.168.1.1",)
 OPNSENSE_HOST = f"http://{firewall_ip[0]}"
 API_KEY = "jrvyX2oH6Ofqp/7BHfC+3YyBq8YTU3PkcGSKKC6XabZGWKZ9OkDkzp8kUtdsxvKTZ60aw2OtcOXUEw5E"
 API_SECRET = "bz92B/FFBOWs1CNrweoJ3iV8N4tkA8Rdf3KMfqzj9lTJ3zMOMbPbqOn9H+TMs2M8e7k2ae7vt4fbsc5x"
@@ -251,6 +262,83 @@ def pty_input(data):
     if app.config["fd"]:
         logging.debug("received input from browser: %s" % data["input"])
         os.write(app.config["fd"], data["input"].encode())
+
+
+def get_protocol(packet):
+    if IP in packet:
+        return packet[IP].proto
+    elif IPv6 in packet:
+        return packet[IPv6].nh
+    return "Unknown"
+
+def packet_callback(packet):
+    global captured_packets
+    if sniffing_event.is_set():
+        captured_packets.append(packet)
+
+        if IP in packet or IPv6 in packet:
+            src_ip = packet[0][1].src
+            dst_ip = packet[0][1].dst
+            protocol = get_protocol(packet)
+            payload = packet[Raw].load.decode('utf-8', errors='ignore') if Raw in packet else "No payload"
+            packet_details = str(packet)
+            iface = packet.sniffed_on
+            socketio.emit('new_packet', {
+                'packet_details': packet_details,
+                'timestamp': str(datetime.now()),
+                'src_ip': src_ip,
+                'dst_ip': dst_ip,
+                'protocol': protocol,
+                'interface': iface,
+                'payload': payload
+            })
+
+def start_sniffing():
+    global start_time, captured_packets
+    start_time = datetime.now()
+    captured_packets = []
+    interfaces = conf.ifaces.data.keys()
+    try:
+        sniff(iface=list(interfaces), prn=packet_callback, store=False, stop_filter=lambda x: not sniffing_event.is_set())
+    except Exception as e:
+        print(f"Error during sniffing: {e}")
+
+def stop_sniffing():
+    global start_time, captured_packets, filename
+    end_time = datetime.now()
+    start_time_str = start_time.strftime('%Y%m%d%H%M%S')
+    end_time_str = end_time.strftime('%Y%m%d%H%M%S')
+    filename = f'capture_{start_time_str}-{end_time_str}.pcap'
+    file_path = os.path.join(CAPTURES_DIR, filename)
+    wrpcap(file_path, captured_packets)
+    print(f"Saved packets to {file_path}")
+    return filename
+
+@socketio.on('start_sniffing')
+def handle_start_sniffing():
+    global sniffing_thread, start_time
+    sniffing_event.set()
+    if sniffing_thread is None or not sniffing_thread.is_alive():
+        start_time = datetime.now()
+        sniffing_thread = Thread(target=start_sniffing)
+        sniffing_thread.start()
+
+@socketio.on('stop_sniffing')
+def handle_stop_sniffing():
+    global sniffing_thread
+    sniffing_event.clear()
+    if sniffing_thread and sniffing_thread.is_alive():
+        sniffing_thread.join()
+    filename = stop_sniffing()
+    emit('download_file', filename)
+@app.route('/<filename>')
+def download_capture(filename):
+    file_path = os.path.join(CAPTURES_DIR, filename)
+    return send_file(file_path, as_attachment=True)
+
+@app.route('/sniffer')
+def sniffer():
+    return render_template('sniffer.html')
 
 
 @socketio.on("resize", namespace="/pty")
